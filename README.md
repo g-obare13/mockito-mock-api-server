@@ -1,4 +1,4 @@
-# @mockito/mock-api-server
+# mockito-mock-api-server
 
 **Zero-config mock REST & GraphQL endpoints with customizable latency, error injection and payload rules — from a simple config file.**
 
@@ -14,33 +14,41 @@ Pure TypeScript. **No runtime dependencies.** The core is a Web-standard `Reques
 
 ## Features
 
-- 🚀 **Zero config to start** — `npx mock-server` boots a working demo API.
-- 🧩 **REST routes** with path params (`:id`), wildcards (`*rest`), optional segments and priorities.
-- 🎛️ **Payload rules** — override status/body/headers based on query, headers, cookies or JSON body.
-- ⏱️ **Latency simulation** — fixed, uniform, normal or exponential distributions, with jitter.
-- 💥 **Error injection** — probabilistic 5xx/4xx, custom bodies, hangs and connection resets.
-- 🧬 **Templating + faker** — `{{ params.id }}`, `{{ body.name }}`, `{{ faker.email }}`, `{{ faker.int(1, 9) }}`.
-- 🔁 **Response sequences** — return a different response on each request (great for retry/polling logic).
-- 🧠 **GraphQL mocking** — schema-less field resolution with aliases, variables, fragments and list args.
-- 🔌 **Passthrough / proxy** — forward some (or all) traffic to a real backend.
-- 🅰️ **CORS** on by default; configurable or disabled.
-- 🧾 **JSON or TypeScript configs** — TS configs get autocomplete, functions and imports.
-- 🌍 **Runs anywhere** — library-first core, plus a thin Node adapter and CLI.
+- **Zero config to start** — `npx mockito-mock-api-server` boots a working demo API.
+- **REST routes** with path params (`:id`), wildcards (`*rest`), optional segments and priorities.
+- **Payload rules** — override status/body/headers based on query, headers, cookies or JSON body.
+- **Latency simulation** — fixed, uniform, normal or exponential distributions, with jitter.
+- **Error injection** — probabilistic 5xx/4xx, custom bodies, hangs and connection resets.
+- **Templating + faker** — `{{ params.id }}`, `{{ body.name }}`, `{{ faker.email }}`, `{{ faker.int(1, 9) }}`.
+- **Response sequences** — return a different response on each request (great for retry/polling logic).
+- **GraphQL mocking** — schema-less field resolution with aliases, variables, fragments and list args.
+- **Passthrough / proxy** — forward some (or all) traffic to a real backend.
+- **CORS** on by default; configurable or disabled.
+- **JSON or TypeScript configs** — TS configs get autocomplete, functions and imports.
+- **Runs anywhere** — library-first core, plus a thin Node adapter and CLI.
 
 ## Quick start
 
 ```bash
 # 1. Just try it — no config needed
-npx @mockito/mock-api-server
+npx mockito-mock-api-server
 
 # 2. Or scaffold a config
-npx @mockito/mock-api-server --init
-npx @mockito/mock-api-server mock.config.json
+npx mockito-mock-api-server --init
+npx mockito-mock-api-server mock.config.json
 ```
 
 ```bash
 curl http://localhost:4000/users/42
-# {"id":"42","name":"Grace Lovelace","email":"grace.lovelace@example.com"}
+```
+
+Response:
+```json
+{
+  "id": "42",
+  "name": "Grace Lovelace",
+  "email": "grace.lovelace@example.com"
+}
 ```
 
 ## Configuration
@@ -52,7 +60,7 @@ A config is an object, in JSON or TypeScript. Config files are auto-discovered:
 
 ```json
 {
-  "$schema": "./node_modules/@mockito/mock-api-server/schema.json",
+  "$schema": "./node_modules/mockito-mock-api-server/schema.json",
   "port": 4000,
   "latency": { "distribution": "uniform", "min": 50, "max": 250 },
   "errors": { "rate": 0.05, "statuses": [500, 503] },
@@ -68,7 +76,7 @@ Adding the `$schema` line gives you editor autocomplete + validation.
 ### TypeScript
 
 ```ts
-import { defineConfig } from '@mockito/mock-api-server';
+import { defineConfig } from 'mockito-mock-api-server';
 
 export default defineConfig({
   port: 4001,
@@ -115,9 +123,19 @@ export default defineConfig({
 Any string may contain `{{ expressions }}`. A whole-string expression keeps its native type:
 
 ```json
-{ "count": "{{ faker.int(5, 5) }}", "label": "id-{{ params.id }}" }
+{
+  "count": "{{ faker.int(5, 5) }}",
+  "label": "id-{{ params.id }}"
+}
 ```
-→ `{ "count": 5, "label": "id-42" }`
+
+Evaluates to:
+```json
+{
+  "count": 5,
+  "label": "id-42"
+}
+```
 
 | Expression | Value |
 | --- | --- |
@@ -135,7 +153,8 @@ Built-in fakers: `firstName`, `lastName`, `fullName`/`name`, `email`, `username`
 Register your own:
 
 ```ts
-import { registerFaker } from '@mockito/mock-api-server';
+import { registerFaker } from 'mockito-mock-api-server';
+
 registerFaker('orderId', (rng) => `ORD-${rng.int(1000, 9999)}`);
 // → "{{ faker.orderId }}"
 ```
@@ -194,12 +213,12 @@ Return a different response per request. `once: true` holds the last entry.
 
 ## Latency
 
-```json
-{ "latency": 200 }                                                   // fixed
-{ "latency": { "distribution": "uniform", "min": 50, "max": 300 } }
-{ "latency": { "distribution": "normal", "mean": 120, "stddev": 40 } }
-{ "latency": { "distribution": "exponential", "mean": 100 } }
-{ "latency": { "fixed": 100, "jitter": 25 } }
+```jsonc
+{ "latency": 200 }                                                     // fixed delay (ms)
+{ "latency": { "distribution": "uniform", "min": 50, "max": 300 } }   // uniform distribution
+{ "latency": { "distribution": "normal", "mean": 120, "stddev": 40 } } // gaussian / normal
+{ "latency": { "distribution": "exponential", "mean": 100 } }         // exponential
+{ "latency": { "fixed": 100, "jitter": 25 } }                         // fixed with +/- jitter
 ```
 
 Set globally, per-route, per-rule or per-sequence-entry. `delay` is shorthand for a fixed latency. Give a `seed` for reproducible jitter.
@@ -245,20 +264,35 @@ Schema-less: the query is parsed and projected against your `data` map.
 
 ```graphql
 query {
-  viewer { id name }
-  admins: users(role: "admin") { id }   # aliases + arguments
-  users(first: 2) { id name }           # list args: id, ids, first, last, limit, offset, where
+  viewer {
+    id
+    name
+  }
+  # Aliases + arguments
+  admins: users(role: "admin") {
+    id
+  }
+  # List args: id, ids, first, last, limit, offset, where
+  users(first: 2) {
+    id
+    name
+  }
 }
 ```
 
 Supports variables, fragments, inline fragments, directives and `__typename`. Values may be resolver functions in TS configs:
 
 ```ts
-graphql: {
-  data: {
-    product: (args) => ({ id: String(args?.id ?? '1'), name: 'Widget' }),
+import { defineConfig } from 'mockito-mock-api-server';
+
+export default defineConfig({
+  graphql: {
+    path: '/graphql',
+    data: {
+      product: (args) => ({ id: String(args?.id ?? '1'), name: 'Widget' }),
+    },
   },
-}
+});
 ```
 
 ## Passthrough & proxy
@@ -266,13 +300,19 @@ graphql: {
 Forward some routes to a real backend (path params are substituted):
 
 ```json
-{ "method": "*", "path": "/external/*rest", "passthrough": "https://api.example.com/:rest" }
+{
+  "method": "*",
+  "path": "/external/*rest",
+  "passthrough": "https://api.example.com/:rest"
+}
 ```
 
 Or proxy **all** unmatched traffic by setting a base URL:
 
 ```json
-{ "proxy": "https://api.example.com" }
+{
+  "proxy": "https://api.example.com"
+}
 ```
 
 Unmatched requests are then forwarded (method, headers and body preserved).
@@ -282,7 +322,7 @@ Unmatched requests are then forwarded (method, headers and body preserved).
 ### Runtime-agnostic core
 
 ```ts
-import { createMockServer } from '@mockito/mock-api-server';
+import { createMockServer } from 'mockito-mock-api-server';
 
 const server = createMockServer({
   routes: [{ method: 'GET', path: '/users/:id', body: { id: '{{ params.id }}' } }],
@@ -295,7 +335,7 @@ await res.json(); // { id: '1' }
 ### Cloudflare Worker / edge / serverless
 
 ```ts
-import { createMockServer } from '@mockito/mock-api-server';
+import { createMockServer } from 'mockito-mock-api-server';
 
 const server = createMockServer({
   routes: [{ method: 'GET', path: '/health', body: { ok: true } }],
@@ -307,8 +347,8 @@ export default { fetch: (request: Request) => server.handler(request) };
 ### Node
 
 ```ts
-import { loadConfig, serve } from '@mockito/mock-api-server/node';
-import { buildServer } from '@mockito/mock-api-server';
+import { loadConfig, serve } from 'mockito-mock-api-server/node';
+import { buildServer } from 'mockito-mock-api-server';
 
 const node = await serve(buildServer(await loadConfig('mock.config.json')));
 console.log(node.url);
@@ -319,7 +359,7 @@ await node.close();
 ### In unit tests (no network, no ports)
 
 ```ts
-import { createMockServer } from '@mockito/mock-api-server';
+import { createMockServer } from 'mockito-mock-api-server';
 
 const server = createMockServer({ routes: [/* ... */] });
 globalThis.fetch = ((input: RequestInfo, init?: RequestInit) =>
@@ -328,8 +368,9 @@ globalThis.fetch = ((input: RequestInfo, init?: RequestInit) =>
 
 ## CLI
 
-```
+```text
 mock-server [config] [options]
+# or: npx mockito-mock-api-server [config] [options]
 
   -p, --port <n>         Port to listen on              (default 4000)
   -H, --host <host>      Host/interface to bind         (default 0.0.0.0)
@@ -367,7 +408,7 @@ mock-server [config] [options]
 
 ## Project layout
 
-```
+```text
 src/
   index.ts        public, runtime-agnostic entrypoint
   node.ts         Node http adapter + config loading
@@ -380,7 +421,7 @@ src/
   response.ts     Response building, CORS
   graphql/        query parser, schema-less resolver, handler
   types.ts        all public types
-test/             node:test suites (52 tests)
+test/             node:test suites (59 tests)
 examples/         JSON + TS example configs
 schema.json       JSON Schema for editor autocomplete
 ```

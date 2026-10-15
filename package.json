@@ -1,5 +1,5 @@
 {
-  "name": "@mockito/mock-api-server",
+  "name": "mockito-mock-api-server",
   "version": "0.1.0",
   "description": "Zero-config mock REST & GraphQL server with custom latency, error injection and payload rules. Pure TypeScript, no runtime dependencies.",
   "type": "module",
@@ -17,7 +17,8 @@
   ],
   "sideEffects": false,
   "bin": {
-    "mock-server": "./dist/bin.js"
+    "mock-server": "./dist/bin.js",
+    "mockito-mock-api-server": "./dist/bin.js"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -42,6 +43,18 @@
     "LICENSE"
   ],
   "schema": "./schema.json",
+  "author": "Geoffrey Obare",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/g-obare13/mockito-mock-api-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/g-obare13/mockito-mock-api-server/issues"
+  },
+  "homepage": "https://github.com/g-obare13/mockito-mock-api-server#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -50,6 +63,7 @@
     "test:watch": "tsx --test --watch test/**/*.test.ts",
     "test:e2e": "tsx scripts/smoke.ts",
     "cli": "tsx src/bin.ts",
+    "prepublishOnly": "npm run typecheck && npm test && npm run test:e2e && npm run build",
     "prepare": "npm run build"
   },
   "engines": {

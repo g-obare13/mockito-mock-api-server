@@ -1,7 +1,7 @@
 /**
  * Public, runtime-agnostic API. This entrypoint has no Node built-in imports,
  * so it can be bundled for Workers, Deno, Bun, browsers or serverless hosts.
- * For the Node HTTP adapter and file-based config loading use `@mockito/mock-api-server/node`.
+ * For the Node HTTP adapter and file-based config loading use `mockito-mock-api-server/node`.
  */
 
 export { createMockServer, buildServer, routeLabels } from './server.js';
