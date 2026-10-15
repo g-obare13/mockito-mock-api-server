@@ -1,0 +1,6 @@
+[
+  { "code": "NG", "name": "Nigeria", "region": "Africa" },
+  { "code": "KE", "name": "Kenya", "region": "Africa" },
+  { "code": "DE", "name": "Germany", "region": "Europe" },
+  { "code": "JP", "name": "Japan", "region": "Asia" }
+]

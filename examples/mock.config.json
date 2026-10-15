@@ -1,0 +1,83 @@
+{
+  "$schema": "../schema.json",
+  "name": "acme-api",
+  "port": 4000,
+  "latency": { "distribution": "uniform", "min": 50, "max": 250 },
+  "errors": { "rate": 0.05, "statuses": [500, 503] },
+  "cors": true,
+  "headers": { "x-mock": "acme" },
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "delay": 0,
+      "body": { "status": "ok", "at": "{{ now }}" }
+    },
+    {
+      "method": "GET",
+      "path": "/users",
+      "body": {
+        "page": "{{ query.page }}",
+        "results": [
+          { "id": 1, "name": "Ada Lovelace", "email": "ada@example.com", "role": "admin" },
+          { "id": 2, "name": "Alan Turing", "email": "alan@example.com", "role": "member" }
+        ]
+      },
+      "rules": [
+        {
+          "name": "empty page",
+          "when": { "query": { "page": { "gte": 10 } } },
+          "body": { "page": "{{ query.page }}", "results": [] }
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/users/:id",
+      "body": {
+        "id": "{{ params.id }}",
+        "name": "{{ faker.fullName }}",
+        "email": "{{ faker.email }}",
+        "avatar": "{{ faker.avatar }}"
+      },
+      "rules": [
+        {
+          "name": "missing user",
+          "when": { "query": { "id": "404" } },
+          "status": 404,
+          "body": { "error": "User not found", "id": "{{ params.id }}" }
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/users",
+      "status": 201,
+      "body": {
+        "id": "{{ faker.uuid }}",
+        "name": "{{ body.name }}",
+        "email": "{{ body.email }}",
+        "createdAt": "{{ now }}"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/flaky",
+      "sequence": [
+        { "status": 200, "body": { "attempt": 1, "ok": true } },
+        { "status": 503, "body": { "attempt": 2, "ok": false } },
+        { "status": 200, "body": { "attempt": 3, "ok": true } }
+      ]
+    }
+  ],
+  "graphql": {
+    "path": "/graphql",
+    "data": {
+      "viewer": { "id": "1", "name": "Ada Lovelace", "email": "ada@example.com" },
+      "users": [
+        { "id": "1", "name": "Ada Lovelace", "email": "ada@example.com" },
+        { "id": "2", "name": "Alan Turing", "email": "alan@example.com" }
+      ]
+    }
+  }
+}
