@@ -127,7 +127,7 @@ export function runGraphQL(
   const data: DataMap = (config.data ?? {}) as DataMap;
 
   try {
-    const result = resolveOperation(operation, doc, data, ctx);
+    const result = resolveOperation(operation, doc, data, ctx, config.schema);
     return { status: 200, payload: result };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

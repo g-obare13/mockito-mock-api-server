@@ -41,11 +41,19 @@ export function matchPath(pattern: string, pathname: string): PathMatch | null {
   for (let i = 0; i < patternSegments.length; i++) {
     const segment = patternSegments[i]!;
 
-    // Catch-all takes every remaining segment.
+    // Catch-all takes every remaining segment (or segments up to remaining pattern tail).
     if (segment.startsWith('*')) {
       const name = segment.slice(1) || 'wildcard';
-      params[name] = pathSegments.slice(index).map(safeDecode).join('/');
-      return { params };
+      const remainingPatternCount = patternSegments.length - 1 - i;
+      if (remainingPatternCount === 0) {
+        params[name] = pathSegments.slice(index).map(safeDecode).join('/');
+        return { params };
+      }
+      if (pathSegments.length - index < remainingPatternCount) return null;
+      const tailStartIndex = pathSegments.length - remainingPatternCount;
+      params[name] = pathSegments.slice(index, tailStartIndex).map(safeDecode).join('/');
+      index = tailStartIndex;
+      continue;
     }
 
     if (segment.startsWith(':')) {
@@ -97,9 +105,24 @@ function toArray(value: unknown): unknown[] {
 function looseEquals(actual: unknown, expected: unknown): boolean {
   if (actual === expected) return true;
   if (actual === null || actual === undefined) return expected === null || expected === undefined;
-  if (typeof expected === 'number' && typeof actual === 'string') return Number(actual) === expected;
+  if (typeof expected === 'number' && typeof actual === 'string') {
+    if (actual.trim() === '') return false;
+    const n = Number(actual);
+    return Number.isFinite(n) && n === expected;
+  }
   if (typeof expected === 'boolean' && typeof actual === 'string') return String(expected) === actual;
   return String(actual) === String(expected);
+}
+
+function toComparableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || typeof value === 'boolean') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    if (value.trim() === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
 }
 
 /** Test a single value against a matcher (primitive shorthand or operator object). */
@@ -148,26 +171,40 @@ export function matchValue(actual: unknown, matcher: ValueMatcher): boolean {
     }
   }
 
-  if ('gt' in m && !(Number(actual) > Number(m.gt))) return false;
-  if ('gte' in m && !(Number(actual) >= Number(m.gte))) return false;
-  if ('lt' in m && !(Number(actual) < Number(m.lt))) return false;
-  if ('lte' in m && !(Number(actual) <= Number(m.lte))) return false;
+  if ('gt' in m) {
+    const num = toComparableNumber(actual);
+    if (num === null || !(num > Number(m.gt))) return false;
+  }
+  if ('gte' in m) {
+    const num = toComparableNumber(actual);
+    if (num === null || !(num >= Number(m.gte))) return false;
+  }
+  if ('lt' in m) {
+    const num = toComparableNumber(actual);
+    if (num === null || !(num < Number(m.lt))) return false;
+  }
+  if ('lte' in m) {
+    const num = toComparableNumber(actual);
+    if (num === null || !(num <= Number(m.lte))) return false;
+  }
 
   return true;
 }
 
 /** Resolve a dot-path inside an arbitrary object/array. */
 export function getIn(target: unknown, path: string): unknown {
-  const keys = path.split('.').filter(Boolean);
+  const keys = path.replace(/\[(\d+)\]/g, '.$1').split('.').filter(Boolean);
   let current: unknown = target;
   for (const key of keys) {
     if (current === null || current === undefined) return undefined;
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return undefined;
     if (Array.isArray(current)) {
       const asIndex = Number(key);
       current = Number.isInteger(asIndex) ? current[asIndex] : current.map((item) => getIn(item, key));
       continue;
     }
     if (typeof current === 'object') {
+      if (!Object.prototype.hasOwnProperty.call(current, key)) return undefined;
       current = (current as Record<string, unknown>)[key];
       continue;
     }

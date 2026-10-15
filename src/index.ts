@@ -24,7 +24,7 @@ export type { DataMap, GraphQLResolverFn, ExecutionResult } from './graphql/reso
 export type { GraphQLRequestParts, GraphQLOutcome } from './graphql/handler.js';
 
 // Faker
-export { registerFaker, listFakers, hasFaker, builtinFakers } from './faker.js';
+export { registerFaker, resetFakers, listFakers, hasFaker, builtinFakers } from './faker.js';
 export type { FakerFn } from './faker.js';
 
 // Internals useful for advanced use / testing

@@ -183,6 +183,18 @@ export function fakerValue(name: string, args: string[], rng: Rng): unknown {
   return fn(rng, args);
 }
 
+/** Reset the faker registry back to the built-in generators. */
+export function resetFakers(): void {
+  for (const key of Object.keys(registry)) {
+    if (!(key in builtinFakers)) delete registry[key];
+  }
+  lookup.clear();
+  for (const [key, fn] of Object.entries(builtinFakers)) {
+    registry[key] = fn;
+    lookup.set(normalizeKey(key), fn);
+  }
+}
+
 /** List all registered generator names, sorted. */
 export function listFakers(): string[] {
   return Object.keys(registry).sort();

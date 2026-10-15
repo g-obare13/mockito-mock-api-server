@@ -21,6 +21,7 @@ import { interpolate } from './template.js';
 import { extractGraphQLRequest, runGraphQL } from './graphql/handler.js';
 import type {
   CompiledRoute,
+  CorsOptions,
   ErrorInjectionOptions,
   GraphQLConfig,
   HttpMethod,
@@ -48,6 +49,18 @@ function routeMatches(route: CompiledRoute, method: string): boolean {
   if (route.methods.has(method.toUpperCase())) return true;
   // HEAD is served by GET handlers.
   return method.toUpperCase() === 'HEAD' && route.methods.has('GET');
+}
+
+function resolveEffectiveCors(
+  routeCors: RouteConfig['cors'],
+  globalCors: NormalizedConfig['cors'],
+): CorsOptions | false {
+  if (routeCors === false) return false;
+  if (routeCors === true) return globalCors ? { ...globalCors } : { origin: '*' };
+  if (routeCors && typeof routeCors === 'object') {
+    return { ...(globalCors ? globalCors : {}), ...routeCors };
+  }
+  return globalCors;
 }
 
 function parseBody(raw: string, contentType: string | null): unknown {
@@ -262,7 +275,6 @@ export function buildServer(config: NormalizedConfig): MockServer {
     ctx: RequestContext,
     url: URL,
   ): { status: number; body: unknown; headers: Record<string, string> } {
-    void config;
     const parts = extractGraphQLRequest({
       method: ctx.method,
       url,
@@ -347,8 +359,21 @@ export function buildServer(config: NormalizedConfig): MockServer {
     const origin = request.headers.get('origin');
 
     // CORS preflight short-circuit.
-    if (method === 'OPTIONS' && config.cors && request.headers.has('access-control-request-method')) {
-      return preflightResponse(config.cors, origin, request.headers.get('access-control-request-headers'));
+    if (method === 'OPTIONS' && request.headers.has('access-control-request-method')) {
+      let routeCorsOption: RouteConfig['cors'] | undefined;
+      for (const route of withinBasePath ? routes : []) {
+        if (matchPath(route.config.path, path)) {
+          routeCorsOption = route.config.cors;
+          break;
+        }
+      }
+      const effectiveCors = resolveEffectiveCors(routeCorsOption, config.cors);
+      if (effectiveCors === false) {
+        return new Response(null, { status: 204 });
+      }
+      if (effectiveCors) {
+        return preflightResponse(effectiveCors, origin, request.headers.get('access-control-request-headers'));
+      }
     }
 
     const rawBody = await readRawBody(request);
@@ -372,7 +397,17 @@ export function buildServer(config: NormalizedConfig): MockServer {
         let response: Response;
         let status: number;
         if (injected) {
-          if (injected.hang) return new Promise<Response>(() => {});
+          if (injected.hang) {
+            return new Promise<Response>((_, reject) => {
+              if (request.signal?.aborted) {
+                reject(new DOMException('Aborted', 'AbortError'));
+                return;
+              }
+              request.signal?.addEventListener('abort', () => {
+                reject(new DOMException('Aborted', 'AbortError'));
+              }, { once: true });
+            });
+          }
           status = injected.status;
           response = buildResponse({
             status,
@@ -527,7 +562,15 @@ export function buildServer(config: NormalizedConfig): MockServer {
 
     if (injected?.hang) {
       await sleep(delay, request.signal);
-      return new Promise<Response>(() => {});
+      return new Promise<Response>((_, reject) => {
+        if (request.signal?.aborted) {
+          reject(new DOMException('Aborted', 'AbortError'));
+          return;
+        }
+        request.signal?.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'));
+        }, { once: true });
+      });
     }
 
     // Resolve the body.
@@ -540,16 +583,23 @@ export function buildServer(config: NormalizedConfig): MockServer {
 
     const status = injected ? injected.status : spec.status ?? 200;
 
+    const routeEffectiveCors = resolveEffectiveCors(route.config.cors, config.cors);
+    const routeCors = corsHeaders(routeEffectiveCors, origin);
+
     const headers: Record<string, string> = {
       ...baseHeaders,
-      ...cors,
+      ...routeCors,
       ...spec.headers,
       ...(injected?.headers ?? {}),
     };
     // Interpolate header values too.
     for (const [key, value] of Object.entries(headers)) {
       const resolved = interpolate(value, ctx);
-      headers[key] = typeof resolved === 'string' ? resolved : String(resolved);
+      if (resolved === undefined || resolved === null) {
+        delete headers[key];
+      } else {
+        headers[key] = typeof resolved === 'string' ? resolved : String(resolved);
+      }
     }
 
     if (delay > 0) await sleep(delay, request.signal);

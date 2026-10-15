@@ -40,6 +40,7 @@ export type HttpMethod =
  */
 export type BodySource<T = JsonValue> =
   | T
+  | Uint8Array
   | ((ctx: RequestContext) => unknown | Promise<unknown>);
 
 /* -------------------------------------------------------------------------- */

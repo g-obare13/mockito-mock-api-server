@@ -91,22 +91,36 @@ function getField(value: unknown, key: string): unknown {
   return undefined;
 }
 
+function parseFieldTypes(schema?: string): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!schema) return map;
+  const fieldRegex = /([A-Za-z_]\w*)\s*(?:\([^)]*\))?\s*:\s*\[?([A-Za-z_]\w*)/g;
+  let match;
+  while ((match = fieldRegex.exec(schema)) !== null) {
+    const field = match[1];
+    const type = match[2];
+    if (field && type) map.set(field, type);
+  }
+  return map;
+}
+
 function project(
   value: unknown,
   selection: readonly SelectionNode[],
   ctx: RequestContext,
   fragments: Map<string, { selection: SelectionNode[] }>,
   typename: string,
+  fieldTypes?: Map<string, string>,
 ): unknown {
   const fields = expand(selection, fragments);
 
   if (typeof value === 'function') {
     const produced = (value as GraphQLResolverFn)(undefined, ctx);
-    return project(produced, selection, ctx, fragments, typename);
+    return project(produced, selection, ctx, fragments, typename, fieldTypes);
   }
 
   if (Array.isArray(value)) {
-    return value.map((item) => project(item, fields, ctx, fragments, typename));
+    return value.map((item) => project(item, fields, ctx, fragments, typename, fieldTypes));
   }
 
   if (fields.length === 0) {
@@ -133,11 +147,17 @@ function project(
       continue;
     }
 
+    if (field.name === '__schema' || field.name === '__type') {
+      result[key] = field.selection.length > 0 ? {} : null;
+      continue;
+    }
+
     let child = source[field.name];
     if (typeof child === 'function') child = (child as GraphQLResolverFn)(field.args, ctx);
     child = applyArgs(child, field.args);
 
-    result[key] = project(child, field.selection, ctx, fragments, field.name);
+    const childType = fieldTypes?.get(field.name) ?? field.name;
+    result[key] = project(child, field.selection, ctx, fragments, childType, fieldTypes);
   }
 
   return result;
@@ -155,6 +175,7 @@ export function resolveOperation(
   doc: DocumentNode,
   data: DataMap,
   ctx: RequestContext,
+  schema?: string,
 ): ExecutionResult {
   const rootType =
     operation.operation === 'mutation'
@@ -163,6 +184,7 @@ export function resolveOperation(
         ? 'Subscription'
         : 'Query';
 
+  const fieldTypes = parseFieldTypes(schema);
   const fields = expand(operation.selection, doc.fragments);
   const result: Record<string, unknown> = {};
 
@@ -183,7 +205,8 @@ export function resolveOperation(
     if (typeof value === 'function') value = (value as GraphQLResolverFn)(field.args, ctx);
     value = applyArgs(value, field.args);
 
-    result[key] = project(value, field.selection, ctx, doc.fragments, field.name);
+    const childType = fieldTypes.get(field.name) ?? field.name;
+    result[key] = project(value, field.selection, ctx, doc.fragments, childType, fieldTypes);
   }
 
   return { data: result };

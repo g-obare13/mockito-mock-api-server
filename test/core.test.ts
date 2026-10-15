@@ -1,6 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { matchPath, matchValue, parseQuery, interpolate, createRng } from '../src/index.js';
+import {
+  matchPath,
+  matchValue,
+  parseQuery,
+  interpolate,
+  createRng,
+  registerFaker,
+  resetFakers,
+  hasFaker,
+} from '../src/index.js';
 import { normalizeConfig, MockConfigError } from '../src/config.js';
 import type { RequestContext } from '../src/types.js';
 
@@ -27,6 +36,8 @@ test('matchPath: optional params', () => {
 test('matchPath: catch-all', () => {
   assert.deepEqual(matchPath('/files/*rest', '/files/a/b.txt'), { params: { rest: 'a/b.txt' } });
   assert.deepEqual(matchPath('*', '/anything/here'), { params: { wildcard: 'anything/here' } });
+  assert.deepEqual(matchPath('/files/*path/download', '/files/a/b/download'), { params: { path: 'a/b' } });
+  assert.equal(matchPath('/files/*path/download', '/files/a/b/other'), null);
 });
 
 test('matchPath: decodes URI components', () => {
@@ -42,6 +53,8 @@ test('matchValue: primitives and loose equality', () => {
   assert.equal(matchValue('true', true), true);
   assert.equal(matchValue('x', 'x'), true);
   assert.equal(matchValue('x', 'y'), false);
+  assert.equal(matchValue('', 0), false);
+  assert.equal(matchValue('   ', 0), false);
 });
 
 test('matchValue: operators', () => {
@@ -52,6 +65,9 @@ test('matchValue: operators', () => {
   assert.equal(matchValue('hello', { in: ['a', 'hello'] }), true);
   assert.equal(matchValue(5, { gt: 3 }), true);
   assert.equal(matchValue(5, { lt: 3 }), false);
+  assert.equal(matchValue(null, { gte: 0 }), false);
+  assert.equal(matchValue(false, { gte: 0 }), false);
+  assert.equal(matchValue('', { gte: 0 }), false);
   assert.equal(matchValue(undefined, { exists: false }), true);
   assert.equal(matchValue(undefined, { exists: true }), false);
   assert.equal(matchValue('x', { not: 'y' }), true);
@@ -92,12 +108,16 @@ function context(overrides: Partial<RequestContext> = {}): RequestContext {
 }
 
 test('interpolate: parameters, query, headers, body paths', () => {
-  const ctx = context();
+  const ctx = context({
+    body: { user: { name: 'Ada' }, items: [{ title: 'Widget' }] },
+  });
   assert.equal(interpolate('{{ params.id }}', ctx), '1');
   assert.equal(interpolate('{{ query.role }}', ctx), 'admin');
   assert.equal(interpolate('{{ headers.x-key }}', ctx), 'secret');
   assert.equal(interpolate('{{ cookies.session }}', ctx), 'abc');
   assert.equal(interpolate('{{ body.user.name }}', ctx), 'Ada');
+  assert.equal(interpolate('{{ body.items[0].title }}', ctx), 'Widget');
+  assert.equal(interpolate('{{ body.constructor }}', ctx), '{{ body.constructor }}');
   assert.equal(interpolate('id-{{ params.id }}', ctx), 'id-1');
 });
 
@@ -116,6 +136,14 @@ test('interpolate: leaves unknown expressions untouched', () => {
   const ctx = context();
   assert.equal(interpolate('{{ nope.missing }}', ctx), '{{ nope.missing }}');
   assert.equal(interpolate('a {{ unknown }} b', ctx), 'a {{ unknown }} b');
+});
+
+test('faker: registerFaker and resetFakers', () => {
+  assert.equal(hasFaker('customFoo'), false);
+  registerFaker('customFoo', () => 'bar');
+  assert.equal(hasFaker('customFoo'), true);
+  resetFakers();
+  assert.equal(hasFaker('customFoo'), false);
 });
 
 /* -------------------------------------------------------------------------- */

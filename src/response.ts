@@ -100,10 +100,12 @@ export function corsHeaders(
   if (!cors) return {};
 
   const origin = resolveOrigin(cors.origin, requestOrigin);
+  if (!origin) return {};
+
   const headers: Record<string, string> = {};
 
-  if (origin) headers['access-control-allow-origin'] = origin;
-  if (origin && origin !== '*') headers['vary'] = 'Origin';
+  headers['access-control-allow-origin'] = origin;
+  if (origin !== '*') headers['vary'] = 'Origin';
   if (cors.credentials) headers['access-control-allow-credentials'] = 'true';
   if (cors.exposedHeaders?.length) headers['access-control-expose-headers'] = cors.exposedHeaders.join(', ');
   if (cors.methods?.length) headers['access-control-allow-methods'] = cors.methods.join(', ');
@@ -119,7 +121,7 @@ function resolveOrigin(origin: CorsOptions['origin'], requestOrigin: string | nu
   const list = Array.isArray(origin) ? origin : [origin];
   if (requestOrigin && list.includes(requestOrigin)) return requestOrigin;
   if (list.includes('*')) return requestOrigin ?? '*';
-  return requestOrigin ?? list[0] ?? null;
+  return null;
 }
 
 /** Build a CORS preflight (`OPTIONS`) response. */

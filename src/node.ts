@@ -91,13 +91,27 @@ async function loadRaw(file: string): Promise<MockServerConfig> {
   return (loaded ?? {}) as MockServerConfig;
 }
 
+const TEXT_EXTENSIONS = new Set([
+  '.json', '.txt', '.text', '.csv', '.md', '.markdown', '.html', '.htm',
+  '.xml', '.svg', '.css', '.js', '.ts', '.yaml', '.yml',
+]);
+
 /** Read an external `file` body for a route (relative to the config directory). */
 async function resolveFileBody(route: RouteConfig, dir: string): Promise<void> {
   if (!route.file || route.body !== undefined) return;
   const target = path.resolve(dir, route.file);
   try {
-    const text = await readFile(target, 'utf8');
-    route.body = target.endsWith('.json') ? JSON.parse(text) : text;
+    const ext = path.extname(target).toLowerCase();
+    if (ext === '.json') {
+      const text = await readFile(target, 'utf8');
+      route.body = JSON.parse(text);
+    } else if (TEXT_EXTENSIONS.has(ext)) {
+      route.body = await readFile(target, 'utf8');
+    } else {
+      // Binary file (images, PDF, audio, zip, etc.)
+      const buf = await readFile(target);
+      route.body = new Uint8Array(buf);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new MockConfigError(`Route "${route.path}" could not read file "${route.file}": ${message}`);

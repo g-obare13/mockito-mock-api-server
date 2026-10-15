@@ -63,12 +63,14 @@ function getIn(target: unknown, path: string[]): unknown {
   let current: unknown = target;
   for (const key of path) {
     if (current === null || current === undefined) return undefined;
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return undefined;
     if (Array.isArray(current)) {
       const index = Number(key);
       current = Number.isInteger(index) ? current[index] : undefined;
       continue;
     }
     if (typeof current === 'object') {
+      if (!Object.prototype.hasOwnProperty.call(current, key)) return undefined;
       current = (current as Record<string, unknown>)[key];
       continue;
     }
@@ -134,7 +136,11 @@ function evaluate(expression: string, ctx: RequestContext): Resolution {
     return { found: false, value: undefined };
   }
 
-  const path = expr.split('.').map((s) => s.trim()).filter(Boolean);
+  const path = expr
+    .replace(/\[(\d+)\]/g, '.$1')
+    .split('.')
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (path.length === 0) return { found: false, value: undefined };
 
   const first = path[0]!;

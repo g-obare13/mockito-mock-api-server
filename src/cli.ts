@@ -86,6 +86,14 @@ function parseArgs(argv: string[]): ParsedArgs {
     if (value === undefined) throw new MockConfigError(`Option ${flag} requires a value`);
     return value;
   };
+  const needNumber = (flag: string, value: string | undefined): number => {
+    const raw = needValue(flag, value);
+    const num = Number(raw);
+    if (!Number.isFinite(num)) {
+      throw new MockConfigError(`Option ${flag} requires a valid number, got "${raw}"`);
+    }
+    return num;
+  };
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -96,12 +104,12 @@ function parseArgs(argv: string[]): ParsedArgs {
     else if (arg === '-w' || arg === '--watch') args.watch = true;
     else if (arg === '--json') args.json = true;
     else if (arg === '--no-cors') args.cors = false;
-    else if (arg === '-p' || arg === '--port') args.port = Number(needValue(arg, next)), i++;
+    else if (arg === '-p' || arg === '--port') args.port = needNumber(arg, next), i++;
     else if (arg === '-H' || arg === '--host') args.host = needValue(arg, next), i++;
     else if (arg === '--base-path') args.basePath = needValue(arg, next), i++;
-    else if (arg === '--latency') args.latency = Number(needValue(arg, next)), i++;
-    else if (arg === '--error-rate') args.errorRate = Number(needValue(arg, next)), i++;
-    else if (arg === '--seed') args.seed = Number(needValue(arg, next)), i++;
+    else if (arg === '--latency') args.latency = needNumber(arg, next), i++;
+    else if (arg === '--error-rate') args.errorRate = needNumber(arg, next), i++;
+    else if (arg === '--seed') args.seed = needNumber(arg, next), i++;
     else if (arg === '--log') args.log = needValue(arg, next), i++;
     else if (arg === '--init') {
       // Optional value: only consume the next token when it isn't a flag.

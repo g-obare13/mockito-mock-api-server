@@ -248,3 +248,95 @@ test('serves the demo config with the expected routes', async () => {
   assert.equal((await server.handler(new Request('http://localhost/users'))).status, 200);
   assert.equal((await server.handler(new Request('http://localhost/users/7'))).status, 200);
 });
+
+test('CORS origin whitelist rejects unlisted origins', async () => {
+  const server = setup({
+    cors: { origin: ['https://allowed.com'], credentials: true },
+    routes: [{ method: 'GET', path: '/safe', body: { ok: true } }],
+  });
+  const res = await req(server, '/safe', { headers: { origin: 'https://evil.com' } });
+  assert.equal(res.headers.get('access-control-allow-origin'), null);
+  assert.equal(res.headers.get('access-control-allow-credentials'), null);
+
+  const okRes = await req(server, '/safe', { headers: { origin: 'https://allowed.com' } });
+  assert.equal(okRes.headers.get('access-control-allow-origin'), 'https://allowed.com');
+  assert.equal(okRes.headers.get('access-control-allow-credentials'), 'true');
+});
+
+test('route-level cors overrides global cors', async () => {
+  const server = setup({
+    cors: true,
+    routes: [
+      { method: 'GET', path: '/nocors', cors: false, body: { ok: true } },
+      { method: 'GET', path: '/customcors', cors: { origin: ['https://route.test'] }, body: { ok: true } },
+    ],
+  });
+
+  const noCorsRes = await req(server, '/nocors', { headers: { origin: 'https://any.test' } });
+  assert.equal(noCorsRes.headers.get('access-control-allow-origin'), null);
+
+  const customRes = await req(server, '/customcors', { headers: { origin: 'https://route.test' } });
+  assert.equal(customRes.headers.get('access-control-allow-origin'), 'https://route.test');
+});
+
+test('route-level cors disabled omits CORS headers on preflight', async () => {
+  const server = setup({
+    cors: true,
+    routes: [{ method: 'GET', path: '/private', cors: false, body: { ok: true } }],
+  });
+  const preflight = await req(server, '/private', {
+    method: 'OPTIONS',
+    headers: { origin: 'https://any.test', 'access-control-request-method': 'GET' },
+  });
+  assert.equal(preflight.headers.get('access-control-allow-origin'), null);
+});
+
+test('injected hang aborts cleanly on request signal', async () => {
+  const server = setup({
+    routes: [{ method: 'GET', path: '/hang', error: { hang: true, rate: 1 } }],
+  });
+  const ac = new AbortController();
+  const promise = server.handler(new Request('http://localhost/hang', { signal: ac.signal }));
+  ac.abort();
+  await assert.rejects(promise, (err: unknown) => {
+    return err instanceof DOMException && err.name === 'AbortError';
+  });
+});
+
+test('GraphQL schema SDL infers __typename default', async () => {
+  const server = setup({
+    graphql: {
+      schema: `
+        type Query {
+          viewer: Account
+        }
+      `,
+      data: {
+        viewer: { id: '42' },
+      },
+    },
+  });
+  const res = await server.handler(
+    new Request('http://localhost/graphql', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: '{ viewer { __typename id } }' }),
+    }),
+  );
+  const body = (await res.json()) as { data: { viewer: { __typename: string; id: string } } };
+  assert.equal(body.data.viewer.__typename, 'Account');
+});
+
+test('CLI parseArgs validates numeric options', async () => {
+  const { parseArgs } = await import('../src/cli.js');
+  const { MockConfigError } = await import('../src/config.js');
+
+  const parsed = parseArgs(['--port', '5000', '--latency', '100', '--seed', '99']);
+  assert.equal(parsed.port, 5000);
+  assert.equal(parsed.latency, 100);
+  assert.equal(parsed.seed, 99);
+
+  assert.throws(() => parseArgs(['--port', 'abc']), MockConfigError);
+  assert.throws(() => parseArgs(['--latency', 'xyz']), MockConfigError);
+  assert.throws(() => parseArgs(['--error-rate', 'nope']), MockConfigError);
+});
