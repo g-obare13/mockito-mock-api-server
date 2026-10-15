@@ -1,0 +1,64 @@
+{
+  "name": "@mockito/mock-api-server",
+  "version": "0.1.0",
+  "description": "Zero-config mock REST & GraphQL server with custom latency, error injection and payload rules. Pure TypeScript, no runtime dependencies.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "mock",
+    "mock-server",
+    "api",
+    "rest",
+    "graphql",
+    "testing",
+    "fixtures",
+    "stub",
+    "faker"
+  ],
+  "sideEffects": false,
+  "bin": {
+    "mock-server": "./dist/bin.js"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "require": "./dist/node.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "schema.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "schema": "./schema.json",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/**/*.test.ts",
+    "test:watch": "tsx --test --watch test/**/*.test.ts",
+    "test:e2e": "tsx scripts/smoke.ts",
+    "cli": "tsx src/bin.ts",
+    "prepare": "npm run build"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
