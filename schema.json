@@ -1,0 +1,203 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/@mockito/mock-api-server/schema.json",
+  "title": "Mock Server Configuration",
+  "description": "Configuration file for mock-server — zero-config REST & GraphQL mocking.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "name": { "type": "string", "description": "Display name shown in the CLI banner." },
+    "port": { "type": "integer", "minimum": 0, "maximum": 65535, "default": 4000 },
+    "host": { "type": "string", "default": "0.0.0.0" },
+    "basePath": { "type": "string", "description": "Prefix stripped from every path before matching." },
+    "seed": { "type": "integer", "description": "Deterministic seed for latency, errors and faker." },
+    "latency": { "$ref": "#/definitions/latency" },
+    "errorRate": { "type": "number", "minimum": 0, "maximum": 1, "description": "Global error injection probability." },
+    "errors": { "$ref": "#/definitions/errorInjection" },
+    "cors": {
+      "oneOf": [
+        { "type": "boolean" },
+        { "$ref": "#/definitions/cors" }
+      ]
+    },
+    "headers": { "$ref": "#/definitions/headers" },
+    "log": { "oneOf": [{ "type": "boolean" }, { "enum": ["silent", "error", "info", "debug"] }] },
+    "logFormat": { "enum": ["pretty", "json"] },
+    "fallback": { "enum": ["404", "echo"], "default": "404" },
+    "proxy": { "type": "string", "description": "Upstream base URL for unmatched requests and relative passthroughs." },
+    "routes": { "type": "array", "items": { "$ref": "#/definitions/route" } },
+    "graphql": {
+      "oneOf": [
+        { "$ref": "#/definitions/graphql" },
+        { "type": "array", "items": { "$ref": "#/definitions/graphql" } }
+      ]
+    }
+  },
+  "definitions": {
+    "headers": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean"] }
+    },
+    "latency": {
+      "oneOf": [
+        { "type": "number", "minimum": 0, "description": "Fixed delay in milliseconds." },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "distribution": { "enum": ["fixed", "uniform", "normal", "exponential"] },
+            "fixed": { "type": "number", "minimum": 0 },
+            "min": { "type": "number", "minimum": 0 },
+            "max": { "type": "number", "minimum": 0 },
+            "mean": { "type": "number", "minimum": 0 },
+            "stddev": { "type": "number", "minimum": 0 },
+            "jitter": { "type": "number", "minimum": 0 }
+          }
+        }
+      ]
+    },
+    "errorInjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "statuses": { "type": "array", "items": { "type": "integer", "minimum": 100, "maximum": 599 } },
+        "codes": { "type": "array", "items": { "type": "integer", "minimum": 100, "maximum": 599 } },
+        "body": {},
+        "messages": { "type": "array", "items": { "type": "string" } },
+        "headers": { "$ref": "#/definitions/headers" },
+        "delay": { "type": "number", "minimum": 0 },
+        "hang": { "type": "boolean" },
+        "connection": { "enum": ["reset", "close"] }
+      }
+    },
+    "cors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "origin": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] },
+        "methods": { "type": "array", "items": { "type": "string" } },
+        "headers": { "type": "array", "items": { "type": "string" } },
+        "exposedHeaders": { "type": "array", "items": { "type": "string" } },
+        "credentials": { "type": "boolean" },
+        "maxAge": { "type": "integer" }
+      }
+    },
+    "valueMatcher": {
+      "description": "A literal (equality) or an object of operators.",
+      "oneOf": [
+        { "type": ["string", "number", "boolean", "null"] },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "equals": {},
+            "not": {},
+            "in": { "type": "array" },
+            "contains": { "type": "string" },
+            "startsWith": { "type": "string" },
+            "endsWith": { "type": "string" },
+            "regex": { "type": "string" },
+            "flags": { "type": "string" },
+            "exists": { "type": "boolean" },
+            "gt": { "type": "number" },
+            "gte": { "type": "number" },
+            "lt": { "type": "number" },
+            "lte": { "type": "number" },
+            "type": { "enum": ["string", "number", "boolean", "array", "object", "null"] }
+          }
+        }
+      ]
+    },
+    "matchRecord": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/valueMatcher" }
+    },
+    "when": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+        },
+        "path": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "object", "properties": { "regex": { "type": "string" }, "flags": { "type": "string" } }, "required": ["regex"] }
+          ]
+        },
+        "query": { "$ref": "#/definitions/matchRecord" },
+        "headers": { "$ref": "#/definitions/matchRecord" },
+        "cookies": { "$ref": "#/definitions/matchRecord" },
+        "body": { "$ref": "#/definitions/matchRecord" }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "headers": { "$ref": "#/definitions/headers" },
+        "body": {},
+        "latency": { "$ref": "#/definitions/latency" },
+        "delay": { "type": "number", "minimum": 0 },
+        "error": { "$ref": "#/definitions/errorInjection" },
+        "errorRate": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "rule": {
+      "allOf": [
+        { "$ref": "#/definitions/response" },
+        {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "when": { "$ref": "#/definitions/when" }
+          }
+        }
+      ]
+    },
+    "route": {
+      "allOf": [
+        { "$ref": "#/definitions/response" },
+        {
+          "type": "object",
+          "required": ["path"],
+          "properties": {
+            "id": { "type": "string" },
+            "path": { "type": "string" },
+            "method": {
+              "oneOf": [
+                { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "*"] },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            },
+            "rules": { "type": "array", "items": { "$ref": "#/definitions/rule" } },
+            "sequence": { "type": "array", "items": { "$ref": "#/definitions/response" } },
+            "once": { "type": "boolean" },
+            "file": { "type": "string", "description": "Serve body from a JSON/text file relative to the config." },
+            "cors": { "oneOf": [{ "type": "boolean" }, { "$ref": "#/definitions/cors" }] },
+            "passthrough": { "type": "string" },
+            "priority": { "type": "integer" }
+          }
+        }
+      ]
+    },
+    "graphql": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "default": "/graphql" },
+        "data": { "type": "object", "description": "Root data keyed by top-level field name." },
+        "schema": { "type": "string", "description": "Optional SDL (used for __typename defaults)." },
+        "latency": { "$ref": "#/definitions/latency" },
+        "errorRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "errors": { "$ref": "#/definitions/errorInjection" },
+        "headers": { "$ref": "#/definitions/headers" }
+      }
+    }
+  }
+}
