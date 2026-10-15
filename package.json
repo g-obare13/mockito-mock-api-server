@@ -1,6 +1,6 @@
 {
   "name": "mockito-mock-api-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-config mock REST & GraphQL server with custom latency, error injection and payload rules. Pure TypeScript, no runtime dependencies.",
   "type": "module",
   "license": "MIT",
